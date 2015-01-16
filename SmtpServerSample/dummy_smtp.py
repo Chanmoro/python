@@ -1,31 +1,61 @@
-import asyncore,smtpd,logging,datetime
+import os
+import asyncore
+import smtpd
+import datetime
+import base64
+import logging
 
-## dummy server setting
-hostname = ''
-port = 8025
-
+# Dummy SMTP serer class.
 class MyDebuggingServer(smtpd.SMTPServer):
     def process_message(self, peer, mailfrom, rcpttos, data):
-        # write any code dere.
-        
         now = datetime.datetime.today()
-        inheaders = 1
-        lines = data.split('\n')
-        print str(now) + ' Receive message'
-        print '---------- MESSAGE FOLLOWS ----------'
-        for line in lines:
+        inheaders = 0
+        b64encoding = 0
+        
+        # Separate mail header and body by empty line.
+        lines = data.split('\n\n')
+        
+        headers = lines[0].split('\n')
+        mail_body = lines[1].replace('\n', '')
+        
+        logging.info(str(now) + ' Receive message')
+        logging.info('---------- MESSAGE FOLLOWS ----------')
+        
+        # Output mail header.
+        for line in headers:
             # headers first
-            if inheaders and not line:
-                print 'X-Peer:', peer[0]
-                inheaders = 0
-            print line
-        print '------------ END MESSAGE ------------'
+            if not inheaders and not line:
+                logging.info('X-Peer:', peer[0])
+                inheaders = 1
+            
+            if 'Content-Transfer-Encoding: base64' in line:
+                b64encoding = 1
+                
+            logging.info(line)
+        logging.info('')
+        
+        # If mail body base64 encoded, decode the string.
+        if b64encoding:
+          mail_body = base64.b64decode(mail_body)
+        
+        # Output mail body.
+        logging.info(mail_body)
+        logging.info('------------ END MESSAGE ------------')
+        print
 
+
+# Start the server.
+script_dir = os.path.dirname(__file__)
+logging.basicConfig(filename=script_dir + '/server.log', format='%(asctime)s %(message)s', level=logging.DEBUG)
+
+hostname = ''
+port = 8025
 MyDebuggingServer((hostname, port), None)
 
-print 'Server Starting...'
-print '%s:%d listening...' % (hostname, port)
+logging.info('Server Starting...')
+logging.info('Listening at port :%d', port)
+
 try:
     asyncore.loop()
 except:
-    print 'Server Stopped'
+    logging.info('Server Stopped')
